@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examen Interactivo de C#</title>
+    <!-- Incluimos Tailwind CSS para los estilos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Usamos la fuente Inter, como es habitual */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Estilo para las opciones de radio */
+        .radio-label:has(:checked) {
+            background-color: #eff6ff; /* bg-blue-50 */
+            border-color: #3b82f6; /* border-blue-500 */
+        }
+        
+        /* Estilos para el modal de explicación de Gemini */
+        #explanation-modal {
+            background-color: rgba(0, 0, 0, 0.5); /* Fondo oscuro semitransparente */
+            transition: opacity 0.3s ease;
+        }
+        #explanation-modal-content {
+            transition: all 0.3s ease;
+        }
+        /* Estilos para el spinner de carga */
+        .loader {
+            border: 4px solid #f3f3f3; /* Gris claro */
+            border-top: 4px solid #3b82f6; /* Azul */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900 min-h-screen p-4 sm:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-2xl shadow-xl">
+        
+        <header class="text-center mb-10">
+            <h1 class="text-3xl sm:text-4xl font-bold text-blue-700">Examen Interactivo de C#</h1>
+            <p class="text-lg text-gray-600 mt-2">Pon a prueba tus conocimientos en C#</p>
+
+            <!-- 
+                Se ha eliminado el campo de entrada de la API Key. 
+                La clave que proporcionaste está ahora incrustada directamente en el script de abajo.
+                ADVERTENCIA: Esto no es seguro si compartes este archivo.
+            -->
+        </header>
+
+        <!-- Navegación de Pestañas -->
+        <nav class="flex border-b border-gray-300" aria-label="Tabs">
+            <button class="tab-button active-tab" data-target="basic-quiz">
+                Nivel Básico
+            </button>
+            <button class="tab-button" data-target="intermediate-quiz">
+                Nivel Intermedio
+            </button>
+            <button class="tab-button" data-target="advanced-quiz">
+                Nivel Avanzado
+            </button>
+        </nav>
+
+        <!-- El formulario contendrá todas las preguntas -->
+        <form id="quiz-form">
+            
+            <!-- Contenedores de Pestañas -->
+            <div id="basic-quiz" class="tab-content py-6 space-y-8">
+                <!-- Las preguntas básicas se cargarán aquí -->
+            </div>
+
+            <div id="intermediate-quiz" class="tab-content py-6 space-y-8 hidden">
+                <!-- Las preguntas intermedias se cargarán aquí -->
+            </div>
+
+            <div id="advanced-quiz" class="tab-content py-6 space-y-8 hidden">
+                <!-- Las preguntas avanzadas se cargarán aquí -->
+            </div>
+
+            <!-- Botón de Envío -->
+            <button type="submit" class="w-full mt-10 bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-all duration-300 shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-300">
+                Enviar Respuestas y Calificar
+            </button>
+        </form>
+
+        <!-- Contenedor para los resultados (oculto por defecto) -->
+        <div id="results-container" class="mt-12 p-6 border-t-4 border-blue-500 rounded-lg bg-gray-50 hidden">
+            <h2 id="results-title" class="text-3xl font-bold text-center mb-6">Resultados</h2>
+            <p id="results-summary" class="text-xl text-center font-semibold mb-8"></p>
+            
+            <!-- Botón para análisis holístico de Gemini -->
+            <div class="text-center mb-8">
+                <button id="gemini-holistic-btn" type="button" class="px-6 py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-semibold rounded-lg shadow-md hover:from-purple-600 hover:to-blue-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-300 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    ✨ Analizar mis resultados con IA
+                </button>
+            </div>
+
+            <!-- Contenedor para la respuesta holística de Gemini -->
+            <div id="gemini-holistic-results" class="p-5 bg-white rounded-lg shadow-inner border border-gray-200 hidden">
+                <!-- El loader o el texto aparecerán aquí -->
+            </div>
+
+            <!-- Aquí se mostrará el desglose de respuestas incorrectas -->
+            <div id="incorrect-answers" class="space-y-6 mt-8">
+                <!-- Contenido dinámico -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 
+      *** CORRECCIÓN APLICADA ***
+      He reemplazado el bloque <style> que usaba '@apply' (de Tailwind) 
+      por CSS estándar. El '@apply' no es CSS válido para el navegador 
+      y pudo haber causado el error de sintaxis.
+    -->
+    <style>
+        .tab-button {
+            margin-bottom: -1px;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+            color: rgb(75 85 99); /* text-gray-600 */
+            font-weight: 500;
+            border-bottom-width: 2px;
+            border-color: transparent;
+            transition-property: all;
+            transition-duration: 200ms;
+        }
+        .tab-button:hover {
+            color: rgb(37 99 235); /* text-blue-600 */
+        }
+        .tab-button.active-tab {
+            color: rgb(29 78 216); /* text-blue-700 */
+            border-color: rgb(37 99 235); /* border-blue-600 */
+        }
+    </style>
+
+    <!-- Modal para Explicación Profunda de Gemini (Oculto por defecto) -->
+    <div id="explanation-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- Fondo -->
+        <div id="modal-backdrop" class="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity"></div>
+        
+        <!-- Contenido del Modal -->
+        <div id="explanation-modal-content" class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 sm:p-8 transform scale-95 opacity-0">
+            <!-- Cabecera -->
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-bold text-blue-700" id="modal-title">✨ Explicación Detallada</h3>
+                <button id="modal-close-btn" type="button" class="text-gray-400 hover:text-gray-600 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Cuerpo (donde va la respuesta de Gemini) -->
+            <div id="modal-body" class="max-h-[60vh] overflow-y-auto pr-2 space-y-4 text-gray-700">
+                <!-- El spinner o la respuesta de Gemini irán aquí -->
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- BASE DE DATOS DE PREGUNTAS ---
+        const quizData = [
+            // --- BÁSICO ---
+            {
+                level: 'basic',
+                question: '¿Cuál es la palabra clave para declarar una variable de tipo texto en C#?',
+                options: [
+                    'text',
+                    'string',
+                    'String',
+                    'char[]'
+                ],
+                correctAnswer: 1,
+                explanation: 'En C#, el tipo de dato para cadenas de texto es `string` (que es un alias para `System.String`). `char` es para un solo caracter.'
+            },
+            {
+                level: 'basic',
+                question: '¿Qué operador se utiliza para una comparación de igualdad de valor en C#?',
+                options: [
+                    '=',
+                    '==',
+                    '===',
+                    '.Equals()'
+                ],
+                correctAnswer: 1,
+                explanation: 'El operador `==` se usa para comparar si dos valores son iguales. Un solo `=` es el operador de asignación. `===` no existe en C# (es de JavaScript).'
+            },
+            {
+                level: 'basic',
+                question: '¿Cuál es el punto de entrada principal de una aplicación de consola en C#?',
+                options: [
+                    'public void Start()',
+                    'public void main()',
+                    'static void Main(string[] args)',
+                    'static int Run()'
+                ],
+                correctAnswer: 2,
+                explanation: 'El método `Main` (con \'M\' mayúscula) es el punto de entrada estándar. Debe ser `static` y generalmente retorna `void` o `int`.'
+            },
+            {
+                level: 'basic',
+                question: '¿Qué tipo de dato usarías para almacenar un número entero?',
+                options: [
+                    'float',
+                    'int',
+                    'double',
+                    'bool'
+                ],
+                correctAnswer: 1,
+                explanation: '`int` es el tipo de dato estándar para números enteros. `float` y `double` son para decimales, y `bool` es para verdadero/falso.'
+            },
+            {
+                level: 'basic',
+                question: '¿Qué operador se usa para asignar un valor a una variable?',
+                options: [
+                    '==',
+                    '=',
+                    '=>',
+                    '!='
+                ],
+                correctAnswer: 1,
+                explanation: 'Un solo `=` se usa para asignar un valor a una variable. `==` es para comparar.'
+            },
+            {
+                level: 'basic',
+                question: '¿Qué bucle se ejecuta al menos una vez, incluso si la condición es falsa?',
+                options: [
+                    'for',
+                    'while',
+                    'do-while',
+                    'foreach'
+                ],
+                correctAnswer: 2,
+                explanation: 'El bucle `do-while` comprueba la condición *después* de ejecutar el bloque, asegurando que se ejecute al menos una vez.'
+            },
+            {
+                level: 'basic',
+                question: '¿Qué palabra clave se usa para declarar un valor que no cambiará (una constante)?',
+                options: [
+                    'const',
+                    'static',
+                    'final',
+                    'readonly'
+                ],
+                correctAnswer: 0,
+                explanation: '`const` declara un valor que no puede ser modificado y se establece en tiempo de compilación.'
+            },
+            {
+                level: 'basic',
+                question: '¿Cuál es el operador para el "NO" lógico?',
+                options: [
+                    '&&',
+                    '||',
+                    '!',
+                    '~'
+                ],
+                correctAnswer: 2,
+                explanation: 'El operador `!` (signo de exclamación) se usa para negar una expresión booleana (NO lógico). `&&` es Y, `||` es O.'
+            },
+            {
+                level: 'basic',
+                question: '¿Cómo se escribe un comentario de una sola línea en C#?',
+                options: [
+                    '/* comentario */',
+                    '<!-- comentario -->',
+                    '// comentario',
+                    '# comentario'
+                ],
+                correctAnswer: 2,
+                explanation: '`//` inicia un comentario de una sola línea. `/* ... */` es para comentarios de múltiples líneas.'
+            },
+            {
+                level: 'basic',
+                question: '¿Qué tipo de dato se usa para almacenar un valor de "verdadero" o "falso"?',
+                options: [
+                    'boolean',
+                    'string',
+                    'int',
+                    'bool'
+                ],
+                correctAnswer: 3,
+                explanation: 'En C#, el tipo de dato booleano (verdadero/falso) se llama `bool`.'
+            },
+            // --- INTERMEDIO ---
+            {
+                level: 'intermediate',
+                question: '¿Qué palabra clave se usa para definir una clase que no puede ser instanciada directamente?',
+                options: [
+                    'static',
+                    'abstract',
+                    'sealed',
+                    'private'
+                ],
+                correctAnswer: 1,
+                explanation: 'Una clase `abstract` no puede ser instanciada. Sirve como clase base para que otras clases hereden de ella.'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Qué es LINQ?',
+                options: [
+                    'Una librería para conectar a bases de datos SQL.',
+                    'Un lenguaje de marcado para interfaces de usuario.',
+                    'Una característica de C# que añade capacidades de consulta de datos a .NET.',
+                    'Un tipo de bucle `for` avanzado.'
+                ],
+                correctAnswer: 2,
+                explanation: 'LINQ significa "Language-Integrated Query" (Consulta Integrada en el Lenguaje). Permite escribir consultas sobre colecciones de objetos, bases de datos, XML, etc.'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Cuál es la diferencia principal entre una `interface` y una `abstract class`?',
+                options: [
+                    'Una interface no puede tener métodos, solo propiedades.',
+                    'Una clase puede heredar de múltiples interfaces, pero solo de una clase abstracta.',
+                    'Una clase abstracta no puede tener constructores.',
+                    'Las interfaces se usan para UI y las clases abstractas para lógica.'
+                ],
+                correctAnswer: 1,
+                explanation: 'C# no admite la herencia múltiple de clases. Sin embargo, una clase sí puede implementar múltiples interfaces. Esta es una diferencia fundamental.'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Cuál es la diferencia clave entre los parámetros `ref` y `out`?',
+                options: [
+                    'La variable `ref` debe ser inicializada antes de pasarse, la variable `out` no.',
+                    'La variable `out` debe ser inicializada antes de pasarse, la variable `ref` no.',
+                    'Ambos son idénticos en su funcionamiento.',
+                    '`ref` es para tipos de valor, `out` es para tipos de referencia.'
+                ],
+                correctAnswer: 0,
+                explanation: 'Una variable pasada como `ref` debe tener un valor. Una variable pasada como `out` no necesita estar inicializada, pero *debe* ser asignada dentro del método.'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Qué palabra clave se usa para evitar que una clase pueda ser heredada?',
+                options: [
+                    'abstract',
+                    'virtual',
+                    'sealed',
+                    'private'
+                ],
+                correctAnswer: 2,
+                explanation: '`sealed` (sellada) previene que otras clases hereden de ella. `abstract` fuerza la herencia.'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Qué es el "Garbage Collector" (Recolector de Basura)?',
+                options: [
+                    'Un compilador de código.',
+                    'Un sistema para gestionar la memoria no utilizada automáticamente.',
+                    'Un depurador de errores en tiempo de ejecución.',
+                    'Una herramienta de seguridad de C#.'
+                ],
+                correctAnswer: 1,
+                explanation: 'El Recolector de Basura (GC) es un proceso automático del CLR que libera la memoria ocupada por objetos que ya no están en uso.'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Qué es el "boxing" en C#?',
+                options: [
+                    'Convertir un tipo de valor (ej. `int`) a un tipo de referencia (`object`).',
+                    'Proteger variables con un bloque `try-catch`.',
+                    'Empaquetar un proyecto para distribución.',
+                    'Crear un constructor para una clase.'
+                ],
+                correctAnswer: 0,
+                explanation: 'Boxing es el proceso de convertir un tipo de valor (como `int`, `struct`) a un tipo de referencia `object`. "Unboxing" es el proceso inverso.'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Qué hace la palabra clave `virtual` en un método?',
+                options: [
+                    'Lo hace obligatorio de implementar en clases derivadas.',
+                    'Permite que sea sobrescrito (`override`) en una clase derivada.',
+                    'Lo convierte en un método estático.',
+                    'Lo oculta de otras clases fuera del ensamblado.'
+                ],
+                correctAnswer: 1,
+                explanation: 'Un método `virtual` en una clase base puede ser reimplementado en una clase derivada usando la palabra clave `override`.'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Qué es un `enum`?',
+                options: [
+                    'Un tipo de error de compilación.',
+                    'Un tipo de dato especial que consiste en un conjunto de constantes con nombre.',
+                    'Un alias para `System.Int32`.',
+                    'Un bucle para enumerar colecciones (similar a foreach).'
+                ],
+                correctAnswer: 1,
+                explanation: 'Una enumeración (`enum`) se usa para definir un conjunto de constantes numéricas con nombres descriptivos (ej. `enum Nivel { Bajo, Medio, Alto }`).'
+            },
+            {
+                level: 'intermediate',
+                question: '¿Cuándo es preferible usar `StringBuilder` en lugar de `string`?',
+                options: [
+                    'Siempre, `StringBuilder` es más rápido.',
+                    'Para almacenar contraseñas de forma segura.',
+                    'Cuando se necesita modificar una cadena muchas veces (ej. en un bucle).',
+                    'Para comparar dos cadenas ignorando mayúsculas/minúsculas.'
+                ],
+                correctAnswer: 2,
+                explanation: 'Concatenar `string` repetidamente crea muchos objetos nuevos. `StringBuilder` modifica una cadena interna de forma eficiente.'
+            },
+            // --- AVANZADO ---
+            {
+                level: 'advanced',
+                question: '¿Qué dos palabras clave son fundamentales para la programación asíncrona en C#?',
+                options: [
+                    'async / await',
+                    'try / catch',
+                    'delegate / event',
+                    'using / new'
+                ],
+                correctAnswer: 0,
+                explanation: '`async` marca un método como asíncrono, y `await` se usa dentro de ese método para esperar a que una tarea (Task) se complete sin bloquear el hilo principal.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Qué es un `delegate` (delegado) en C#?',
+                options: [
+                    'Un evento que se dispara automáticamente.',
+                    'Un tipo de dato que encapsula una referencia a un método (similar a un puntero a función).',
+                    'Una clase que gestiona la memoria automáticamente.',
+                    'Una forma de crear hilos (threads) de forma segura.'
+                ],
+                correctAnswer: 1,
+                explanation: 'Un delegado es un tipo de referencia que puede usarse para encapsular un método con una firma (parámetros y tipo de retorno) específica.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Para qué se utiliza principalmente la sentencia `using` en C# (no la directiva `using` de namespaces)?',
+                options: [
+                    'Para importar librerías externas.',
+                    'Para crear un alias de un tipo de dato.',
+                    'Para asegurar que los objetos que implementan `IDisposable` liberen sus recursos.',
+                    'Para declarar variables locales que solo existen en ese bloque.'
+                ],
+                correctAnswer: 2,
+                explanation: 'La sentencia `using (var obj = ...)` asegura que el método `Dispose()` del objeto se llame automáticamente al salir del bloque `using`.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Qué es una Expresión Lambda?',
+                options: [
+                    'Una forma de declarar constantes globales.',
+                    'Un método anónimo escrito de forma corta (ej. `x => x * 2`).',
+                    'Un tipo de consulta LINQ obligatorio.',
+                    'Un error de compilación relacionado con tipos.'
+                ],
+                correctAnswer: 1,
+                explanation: 'Una expresión lambda (ej. `x => x * 2`) es una sintaxis corta para escribir un método anónimo, muy usada en LINQ y delegados.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Qué es la Inyección de Dependencias (DI)?',
+                options: [
+                    'Un patrón donde un objeto recibe sus dependencias desde una fuente externa.',
+                    'Una forma de "inyectar" SQL malicioso en una aplicación.',
+                    'Un método para depurar código en tiempo real.',
+                    'Una característica exclusiva de LINQ para filtrar datos.'
+                ],
+                correctAnswer: 0,
+                explanation: 'La Inyección de Dependencias es un patrón de diseño que ayuda a desacoplar el código, facilitando las pruebas y el mantenimiento.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Qué hace la palabra clave `yield return`?',
+                options: [
+                    'Devuelve un valor y termina la ejecución del método inmediatamente.',
+                    'Crea un iterador personalizado que devuelve elementos uno por uno (evaluación perezosa).',
+                    'Inicia una nueva tarea (`Task`) asíncrona.',
+                    'Lanza una excepción de tipo `YieldException`.'
+                ],
+                correctAnswer: 1,
+                explanation: '`yield return` se usa en métodos que devuelven `IEnumerable`. Permite al método "pausar" y devolver un valor, y continuar desde ese punto la próxima vez.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Cuál es la diferencia principal entre un `struct` y una `class`?',
+                options: [
+                    'No hay diferencia, son sinónimos.',
+                    '`struct` es un tipo de valor, `class` es un tipo de referencia.',
+                    '`class` no puede tener métodos, `struct` sí.',
+                    '`struct` solo puede almacenar números.'
+                ],
+                correctAnswer: 1,
+                explanation: 'Los `struct` son tipos de valor (se copian por valor) y generalmente se almacenan en el stack. Las `class` son tipos de referencia (se copian por referencia) y se almacenan en el heap.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Qué es un delegado `Action<T>`?',
+                options: [
+                    'Un delegado que toma un parámetro `T` y devuelve un `bool`.',
+                    'Un delegado que toma un parámetro `T` y no devuelve ningún valor (`void`).',
+                    'Un delegado que no toma parámetros y devuelve un `T`.',
+                    'Una clase para animaciones de interfaz de usuario.'
+                ],
+                correctAnswer: 1,
+                explanation: '`Action` es un delegado genérico para métodos que no devuelven valor (`void`). `Action<T>` toma un parámetro.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Qué es un delegado `Func<T, TResult>`?',
+                options: [
+                    'Un delegado que toma un parámetro `T` y devuelve un valor `TResult`.',
+                    'Un delegado que no toma parámetros y devuelve `void`.',
+                    'Un delegado que toma `T` y `TResult` y devuelve `void`.',
+                    'Una función matemática especial en `System.Math`.'
+                ],
+                correctAnswer: 0,
+                explanation: '`Func` es un delegado genérico para métodos que SÍ devuelven un valor. El *último* parámetro genérico es siempre el tipo de retorno.'
+            },
+            {
+                level: 'advanced',
+                question: '¿Qué es `Task.Run()`?',
+                options: [
+                    'Una forma de ejecutar una tarea (`Task`) de forma síncrona en el hilo principal.',
+                    'Un atajo para poner en cola un trabajo en el `ThreadPool` (ejecución asíncrona).',
+                    'Una función para pausar la ejecución del programa.',
+                    'Un método obsoleto reemplazado por `Task.Factory.StartNew()`.'
+                ],
+                correctAnswer: 1,
+                explanation: '`Task.Run()` es la forma moderna y preferida de ejecutar una operación en un hilo del ThreadPool, permitiendo que la UI (u otro hilo) no se bloquee.'
+            }
+        ];
+
+        // --- LÓGICA DEL SCRIPT ---
+
+        // --- FUNCIONES DE GEMINI API ---
+
+        /**
+         * Devuelve la API key incrustada.
+         * ADVERTENCIA: ¡Esto no es seguro para producción! La clave es visible en el código.
+         */
+        function getApiKey() {
+            return "AIzaSyC6x340B9SZZEy8BWrInDSl2gYJuV_zicc";
+        }
+
+        /**
+         * Pequeña utilidad para pausar la ejecución (usada en reintentos).
+         */
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * Llama a la API de Gemini con lógica de reintentos (exponential backoff).
+         */
+        async function callGeminiWithRetries(prompt, systemInstruction, retries = 3, delay = 1000) {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                // No mostramos alert() aquí para no ser intrusivos, la UI lo manejará.
+                console.warn("Se intentó llamar a Gemini sin API key.");
+                return "Por favor, ingresa tu API Key de Google AI Studio para usar esta función.";
+            }
+
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: {
+                    parts: [{ text: systemInstruction }]
+                }
+            };
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        console.error("Error en la API de Gemini:", errorData);
+                        throw new Error(`Error de API: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts.length > 0) {
+                        return result.candidates[0].content.parts[0].text;
+                    } else {
+                        // Manejar respuesta vacía o mal formada
+                        if (result.promptFeedback && result.promptFeedback.blockReason) {
+                            console.error("Llamada bloqueada:", result.promptFeedback.blockReason);
+                            return `La solicitud fue bloqueada por razones de seguridad: ${result.promptFeedback.blockReason}`;
+                        }
+                        throw new Error("Respuesta inesperada o vacía de la API de Gemini.");
+                    }
+
+                } catch (error) {
+                    console.error(`Intento ${i + 1} fallido:`, error);
+                    if (i === retries - 1) {
+                        // Último intento fallido
+                        return "Lo sentimos, hubo un error al contactar a la IA. Revisa tu API key y la consola para más detalles.";
+                    }
+                    // Esperar antes de reintentar
+                    await sleep(delay * Math.pow(2, i));
+                }
+            }
+            return "Error desconocido después de múltiples intentos."; // No debería llegar aquí
+        }
+
+        // --- FUNCIONES DEL QUIZ (EXISTENTES) ---
+
+        /**
+         * Configura la lógica para cambiar entre pestañas.
+         */
+        function setupTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Obtener el ID del contenido a mostrar desde 'data-target'
+                    const targetId = button.getAttribute('data-target');
+                    
+                    // Actualizar botones (quitar 'active' de todos, poner en el clickeado)
+                    tabButtons.forEach(btn => btn.classList.remove('active-tab'));
+                    button.classList.add('active-tab');
+
+                    // Ocultar todo el contenido
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+
+                    // Mostrar el contenido objetivo
+                    const targetContent = document.getElementById(targetId);
+                    if (targetContent) {
+                        targetContent.classList.remove('hidden');
+                    }
+                });
+            });
+        }
+
+        /**
+         * Carga las preguntas en el DOM usando métodos robustos (createElement).
+         */
+        function loadQuiz() {
+            const containers = {
+                basic: document.getElementById('basic-quiz'),
+                intermediate: document.getElementById('intermediate-quiz'),
+                advanced: document.getElementById('advanced-quiz')
+            };
+            
+            // Contadores para numeración por sección
+            let counters = { basic: 1, intermediate: 1, advanced: 1 };
+
+            quizData.forEach((questionData, index) => {
+                const container = containers[questionData.level];
+                if (!container) return;
+
+                // --- Creación robusta de elementos ---
+                
+                // 1. Crear el contenedor principal de la pregunta
+                const questionElement = document.createElement('div');
+                questionElement.className = 'p-6 border border-gray-200 rounded-lg shadow-sm bg-white';
+
+                // 2. Crear el texto de la pregunta
+                const questionText = document.createElement('p');
+                questionText.className = 'text-lg font-medium text-gray-800 mb-5';
+                
+                // *** CORRECCIÓN DE NUMERACIÓN ***
+                // Usamos el contador de nivel y lo incrementamos
+                questionText.textContent = `${counters[questionData.level]}. ${questionData.question}`;
+                counters[questionData.level]++;
+                
+                questionElement.appendChild(questionText);
+
+                // 3. Crear el contenedor de opciones
+                const optionsContainer = document.createElement('div');
+                optionsContainer.className = 'space-y-3';
+
+                // 4. Crear cada opción (label, input, span)
+                questionData.options.forEach((option, optionIndex) => {
+                    const label = document.createElement('label');
+                    label.className = 'radio-label block w-full p-4 border border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 transition-all duration-200';
+
+                    const input = document.createElement('input');
+                    input.type = 'radio';
+                    input.name = `q${index}`; // El 'name' agrupa los radio buttons
+                    input.value = optionIndex;
+                    input.className = 'mr-3 text-blue-600 focus:ring-blue-500';
+
+                    const span = document.createElement('span');
+                    span.className = 'text-gray-700';
+                    span.textContent = option;
+
+                    label.appendChild(input);
+                    label.appendChild(span);
+                    optionsContainer.appendChild(label);
+                });
+
+                questionElement.appendChild(optionsContainer);
+                container.appendChild(questionElement);
+            });
+        }
+
+        /**
+         * Maneja el envío del formulario, califica y muestra los resultados.
+         */
+        function handleSubmit(event) {
+            event.preventDefault(); 
+
+            const quizForm = document.getElementById('quiz-form');
+            const resultsContainer = document.getElementById('results-container');
+            const resultsSummary = document.getElementById('results-summary');
+            const incorrectAnswersDiv = document.getElementById('incorrect-answers');
+            const holisticButton = document.getElementById('gemini-holistic-btn');
+            const holisticResults = document.getElementById('gemini-holistic-results');
+
+            // Limpiar resultados anteriores
+            incorrectAnswersDiv.innerHTML = '';
+            holisticResults.innerHTML = '';
+            holisticResults.classList.add('hidden');
+            holisticButton.style.display = 'block'; // Mostrar botón por defecto
+
+            const formData = new FormData(quizForm);
+            let score = 0;
+            let questionsAnswered = 0; // <-- NUEVA VARIABLE
+            let incorrectHtml = '';
+            let incorrectQuestionsForAI = []; // Array para enviar a Gemini
+
+            quizData.forEach((questionData, index) => {
+                const userAnswer = formData.get(`q${index}`);
+
+                // *** LÓGICA MODIFICADA ***
+                // Solo procesamos la pregunta si fue respondida
+                if (userAnswer !== null) {
+                    questionsAnswered++; // Contar como pregunta intentada
+                    const isCorrect = parseInt(userAnswer) === questionData.correctAnswer;
+
+                    if (isCorrect) {
+                        score++;
+                    } else {
+                        // Es incorrecta, mostrar en resultados
+                        const correctAnswerText = questionData.options[questionData.correctAnswer];
+                        const userAnswerText = questionData.options[parseInt(userAnswer)];
+                        
+                        // Almacenar info para el análisis holístico de IA
+                        incorrectQuestionsForAI.push({
+                            question: questionData.question,
+                            yourAnswer: userAnswerText,
+                            correctAnswer: correctAnswerText,
+                            explanation: questionData.explanation
+                        });
+
+                        // Añadimos el botón de "Explicar más a fondo" con data-attributes
+                        incorrectHtml += `
+                            <div class="p-5 border border-red-300 rounded-lg bg-red-50">
+                                <p class="font-semibold text-red-800 text-lg">Pregunta: ${questionData.question}</p>
+                                <p class="mt-2 text-red-700">
+                                    <span class="font-medium">Tu respuesta:</span> ${userAnswerText}
+                                </p>
+                                <p class="mt-1 text-green-700">
+                                    <span class="font-medium">Respuesta correcta:</span> ${correctAnswerText}
+                                </p>
+                                <div class="mt-3 pt-3 border-t border-red-200">
+                                    <p class="text-sm text-gray-800 font-medium">Explicación:</p>
+                                    <p class="text-sm text-gray-700 mt-1">${questionData.explanation}</p>
+                                </div>
+                                <!-- Botón de Gemini para explicación profunda -->
+                                <div class="mt-4 text-right">
+                                    <button type="button" 
+                                            class="gemini-explain-btn px-4 py-2 bg-blue-100 text-blue-700 text-sm font-medium rounded-md hover:bg-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                            data-question="${encodeURIComponent(questionData.question)}"
+                                            data-explanation="${encodeURIComponent(questionData.explanation)}"
+                                            disabled>
+                                        ✨ Explicar más a fondo
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                // Si userAnswer es null, simplemente no hace nada con esa pregunta.
+            });
+
+            // *** LÓGICA DE RESULTADOS MEJORADA ***
+            if (questionsAnswered === 0) {
+                resultsSummary.textContent = "No has respondido ninguna pregunta.";
+                incorrectAnswersDiv.innerHTML = '<p class="text-center text-lg text-gray-600">Completa al menos una sección para ver tus resultados.</p>';
+                holisticButton.style.display = 'none'; // Ocultar botón de IA
+            } else {
+                // Mostrar puntuación basada en las respondidas
+                resultsSummary.textContent = `Tu puntuación: ${score} de ${questionsAnswered} respondidas`;
+                
+                if (incorrectHtml) {
+                    incorrectAnswersDiv.innerHTML = `<h3 class="text-xl font-semibold mb-4 text-red-700">Repaso de respuestas incorrectas:</h3>` + incorrectHtml;
+                    holisticButton.style.display = 'block'; // Mostrar botón IA
+                } else {
+                    // Todas las respondidas fueron correctas
+                    incorrectAnswersDiv.innerHTML = `<p class="text-center text-lg font-medium text-green-600">¡Felicidades! ¡Todas las (${questionsAnswered}) preguntas que respondiste son correctas!</p>`;
+                    holisticButton.style.display = 'none'; // Ocultar botón de IA
+                }
+            }
+
+            resultsContainer.style.display = 'block';
+            resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Almacenar las preguntas incorrectas para el botón holístico
+            holisticButton.dataset.incorrectData = JSON.stringify(incorrectQuestionsForAI);
+            
+            // Habilitar botones de IA si hay una API key
+            checkApiKeyAndEnableButtons();
+        }
+
+        /**
+         * Habilita/deshabilita los botones de IA basado en si hay una API key.
+         */
+        function checkApiKeyAndEnableButtons() {
+            const apiKey = getApiKey();
+            const disabled = !apiKey;
+            
+            const holisticButton = document.getElementById('gemini-holistic-btn');
+            if (holisticButton) {
+                holisticButton.disabled = disabled;
+            }
+            
+            document.querySelectorAll('.gemini-explain-btn').forEach(btn => {
+                btn.disabled = disabled;
+            });
+
+            // Si se deshabilita, mostrar un tooltip o mensaje
+            const apiKeyInput = document.getElementById('api-key');
+            if(disabled) {
+                if (apiKeyInput) apiKeyInput.classList.add('border-red-500'); // Resaltar campo
+            } else {
+                if (apiKeyInput) apiKeyInput.classList.remove('border-red-500');
+            }
+        }
+
+        // --- MANEJADORES DE MODAL Y GEMINI ---
+
+        function showModal(title, content) {
+            const modal = document.getElementById('explanation-modal');
+            const modalContent = document.getElementById('explanation-modal-content');
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').innerHTML = content;
+            
+            modal.classList.remove('hidden');
+            // Pequeño delay para la animación de entrada
+            setTimeout(() => {
+                modal.classList.add('opacity-100');
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('explanation-modal');
+            const modalContent = document.getElementById('explanation-modal-content');
+            
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            modal.classList.remove('opacity-100');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300); // Esperar a que termine la animación
+        }
+
+        /**
+         * Formatea la respuesta de texto plano de Gemini a HTML seguro.
+         * Reemplaza \n con <br>
+         * Envuelve bloques de código (```csharp ... ```) en <pre><code>
+         */
+        function formatGeminiResponse(text) {
+            // Escapar HTML básico para seguridad
+            let safeText = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            // Formatear bloques de código
+            safeText = safeText.replace(/```csharp\n([\s\S]*?)```/g, 
+                (match, code) => `<pre class="bg-gray-900 text-white p-4 rounded-md mt-4 mb-4 overflow-x-auto"><code>${code.trim()}</code></pre>`
+            );
+            
+            // Formatear bloques de código genéricos
+            safeText = safeText.replace(/```\n([\s\S]*?)```/g, 
+                (match, code) => `<pre class="bg-gray-900 text-white p-4 rounded-md mt-4 mb-4 overflow-x-auto"><code>${code.trim()}</code></pre>`
+            );
+
+            // Reemplazar saltos de línea por <br> fuera de los bloques <pre>
+            const parts = safeText.split(/(<pre[\s\S]*?<\/pre>)/);
+            let html = '';
+            for (let i = 0; i < parts.length; i++) {
+                if (i % 2 === 0) {
+                    // Es texto normal
+                    html += parts[i].replace(/\n/g, '<br>');
+                } else {
+                    // Es un bloque <pre>
+                    html += parts[i];
+                }
+            }
+
+            return html;
+        }
+
+
+        // --- EVENT LISTENERS ---
+        // Esperar a que el HTML esté cargado
+        document.addEventListener('DOMContentLoaded', () => {
+            setupTabs(); // Configurar la lógica de las pestañas
+            loadQuiz();  // Cargar las preguntas en el DOM
+            
+            // Asignar la función de calificar al envío del formulario
+            document.getElementById('quiz-form').addEventListener('submit', handleSubmit);
+
+            // Listener para el input de API key
+            const apiKeyInput = document.getElementById('api-key');
+            if (apiKeyInput) {
+                apiKeyInput.addEventListener('input', checkApiKeyAndEnableButtons);
+            }
+
+            // Listeners para cerrar el modal
+            document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+            document.getElementById('modal-backdrop').addEventListener('click', closeModal);
+
+            // --- Listener para el botón de "Análisis Holístico" (Feature 1) ---
+            document.getElementById('gemini-holistic-btn').addEventListener('click', async (event) => {
+                const button = event.currentTarget;
+                const resultsDiv = document.getElementById('gemini-holistic-results');
+                
+                if (!getApiKey()) {
+                    alert("Por favor, ingresa tu API Key para usar esta función.");
+                    return;
+                }
+                
+                const incorrectData = JSON.parse(button.dataset.incorrectData || '[]');
+                if (incorrectData.length === 0) return;
+
+                resultsDiv.innerHTML = '<div class="flex justify-center items-center p-4"><div class="loader"></div><p class="ml-4 text-gray-600">Analizando tus respuestas...</p></div>';
+                resultsDiv.classList.remove('hidden');
+                button.disabled = true;
+
+                const systemPrompt = "Eres un tutor de programación C# amigable y experto. Tu tono es alentador y constructivo. Analiza las respuestas incorrectas del estudiante (pregunta, su respuesta, la correcta) y proporciona un resumen conciso (máximo 3 párrafos) de sus fortalezas y debilidades. USA MARKDOWN para formatear (ej. **negritas**, *cursivas*). Concluye sugiriendo 2-3 temas clave en los que debería enfocarse para mejorar, usando una lista con guiones.";
+                
+                let userPrompt = "Hola, he fallado estas preguntas en un examen de C#:\n\n";
+                incorrectData.forEach((item, index) => {
+                    userPrompt += `Error ${index + 1}:\n`;
+                    userPrompt += `- Pregunta: ${item.question}\n`;
+                    userPrompt += `- Mi respuesta: ${item.yourAnswer}\n`;
+                    userPrompt += `- Respuesta correcta: ${item.correctAnswer}\n\n`;
+                });
+                userPrompt += "Basado en estos errores, ¿cuál es tu análisis de mis conocimientos y qué debería estudiar?";
+
+                const response = await callGeminiWithRetries(userPrompt, systemPrompt);
+                
+                // Usamos la nueva función de formateo
+                resultsDiv.innerHTML = `<div class="prose prose-blue max-w-none">${formatGeminiResponse(response)}</div>`;
+                button.disabled = false;
+            });
+
+            // --- Listener delegado para "Explicar más fondo" (Feature 2) ---
+            document.addEventListener('click', async (event) => {
+                const button = event.target.closest('.gemini-explain-btn');
+                if (button) {
+                    
+                    if (!getApiKey()) {
+                        alert("Por favor, ingresa tu API Key para usar esta función.");
+                        return;
+                    }
+
+                    const question = decodeURIComponent(button.dataset.question);
+                    const explanation = decodeURIComponent(button.dataset.explanation);
+
+                    // Mostrar modal con loader
+                    showModal('✨ Explicación Detallada', '<div class="flex justify-center items-center p-8"><div class="loader"></div><p class="ml-4 text-gray-600">Generando explicación...</p></div>');
+
+                    const systemPrompt = "Eres un tutor de programación C#. Explica el siguiente concepto de forma clara, detallada y amigable, como si se lo explicaras a un principiante. Proporciona un ejemplo de código simple y bien comentado para ilustrar tu explicación. USA MARKDOWN para formatear (especialmente bloques de código ```csharp ... ```).";
+                    const userPrompt = `Necesito una explicación más profunda sobre este tema.\n\NLa pregunta del examen fue:\n"${question}"\n\NLa explicación breve fue:\n"${explanation}"\n\NPor favor, dame una explicación más detallada y un ejemplo de código práctico.`;
+
+                    const response = await callGeminiWithRetries(userPrompt, systemPrompt);
+                    
+                    // Usamos la nueva función de formateo
+                    document.getElementById('modal-body').innerHTML = `<div class="prose prose-blue max-w-none">${formatGeminiResponse(response)}</div>`;
+                }
+            });
+
+        });
+
+    </script>
+</body>
+</html>
