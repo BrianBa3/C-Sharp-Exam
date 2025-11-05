@@ -67,6 +67,10 @@
             <button class="tab-button" data-target="advanced-quiz">
                 Nivel Avanzado
             </button>
+            <!-- NUEVA PESTAÑA DE IA -->
+            <button class="tab-button" data-target="ai-quiz">
+                🤖 Generado por IA
+            </button>
         </nav>
 
         <!-- El formulario contendrá todas las preguntas -->
@@ -83,6 +87,17 @@
 
             <div id="advanced-quiz" class="tab-content py-6 space-y-8 hidden">
                 <!-- Las preguntas avanzadas se cargarán aquí -->
+            </div>
+
+            <!-- NUEVO CONTENEDOR DE PESTAÑA DE IA -->
+            <div id="ai-quiz" class="tab-content py-6 space-y-8 hidden">
+                <!-- El loader se muestra hasta que la IA responda -->
+                <div id="ai-quiz-loader" class="flex flex-col items-center justify-center p-12 text-gray-500">
+                    <div class="loader"></div>
+                    <p class="mt-4 text-lg">Generando 5 preguntas nuevas con IA...</p>
+                    <p class="text-sm">(Esto solo sucede la primera vez que abres esta pestaña)</p>
+                </div>
+                <!-- Las preguntas generadas por IA se cargarán aquí -->
             </div>
 
             <!-- Botón de Envío -->
@@ -536,7 +551,7 @@
             }
         ];
 
-        // --- LÓGICA DEL SCRIPT ---
+        let aiQuestionsLoaded = false; // Flag global para evitar recargas
 
         // --- FUNCIONES DE GEMINI API ---
 
@@ -616,6 +631,67 @@
             return "Error desconocido después de múltiples intentos."; // No debería llegar aquí
         }
 
+        /**
+         * Llama a la API de Gemini solicitando una respuesta JSON estructurada.
+         */
+        async function callGeminiForJson(prompt, systemInstruction, schema, retries = 3, delay = 1000) {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                console.warn("Se intentó llamar a Gemini sin API key.");
+                return null;
+            }
+
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: {
+                    parts: [{ text: systemInstruction }]
+                },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: schema
+                }
+            };
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        console.error("Error en la API de Gemini (JSON):", errorData);
+                        throw new Error(`Error de API: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts.length > 0) {
+                        const textResponse = result.candidates[0].content.parts[0].text;
+                        return JSON.parse(textResponse); // Devuelve el objeto JSON parseado
+                    } else {
+                        if (result.promptFeedback && result.promptFeedback.blockReason) {
+                            console.error("Llamada bloqueada:", result.promptFeedback.blockReason);
+                        }
+                        throw new Error("Respuesta inesperada o vacía de la API de Gemini (JSON).");
+                    }
+
+                } catch (error) {
+                    console.error(`Intento ${i + 1} fallido (JSON):`, error);
+                    if (i === retries - 1) {
+                        return null; // Falló después de todos los reintentos
+                    }
+                    await sleep(delay * Math.pow(2, i));
+                }
+            }
+            return null; // Falló
+        }
+
+
         // --- FUNCIONES DEL QUIZ (EXISTENTES) ---
 
         /**
@@ -644,12 +720,67 @@
                     if (targetContent) {
                         targetContent.classList.remove('hidden');
                     }
+
+                    // --- LÓGICA DE IA AÑADIDA ---
+                    // Si es la pestaña de IA y no se ha cargado...
+                    if (targetId === 'ai-quiz' && !aiQuestionsLoaded) {
+                        aiQuestionsLoaded = true; // Marcar como cargando (para evitar dobles clics)
+                        loadAIQuestions(); // Llamar a la función de generación
+                    }
                 });
             });
         }
 
         /**
-         * Carga las preguntas en el DOM usando métodos robustos (createElement).
+         * REFACTORIZACIÓN: Crea el DOM para una sola pregunta.
+         * Usado por loadQuiz() y loadAIQuestions().
+         * @param {object} questionData - El objeto de la pregunta.
+         * @param {number} index - El índice de la pregunta en el array global quizData.
+         * @param {number} questionNumber - El número a mostrar (1, 2, 3...).
+         * @returns {HTMLElement} El elemento div de la pregunta.
+         */
+        function createQuestionElement(questionData, index, questionNumber) {
+            // 1. Crear el contenedor principal de la pregunta
+            const questionElement = document.createElement('div');
+            questionElement.className = 'p-6 border border-gray-200 rounded-lg shadow-sm bg-white';
+
+            // 2. Crear el texto de la pregunta
+            const questionText = document.createElement('p');
+            questionText.className = 'text-lg font-medium text-gray-800 mb-5';
+            questionText.textContent = `${questionNumber}. ${questionData.question}`;
+            questionElement.appendChild(questionText);
+
+            // 3. Crear el contenedor de opciones
+            const optionsContainer = document.createElement('div');
+            optionsContainer.className = 'space-y-3';
+
+            // 4. Crear cada opción (label, input, span)
+            questionData.options.forEach((option, optionIndex) => {
+                const label = document.createElement('label');
+                label.className = 'radio-label block w-full p-4 border border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 transition-all duration-200';
+
+                const input = document.createElement('input');
+                input.type = 'radio';
+                input.name = `q${index}`; // El 'name' agrupa los radio buttons (usa el índice global)
+                input.value = optionIndex;
+                input.className = 'mr-3 text-blue-600 focus:ring-blue-500';
+
+                const span = document.createElement('span');
+                span.className = 'text-gray-700';
+                span.textContent = option;
+
+                label.appendChild(input);
+                label.appendChild(span);
+                optionsContainer.appendChild(label);
+            });
+
+            questionElement.appendChild(optionsContainer);
+            return questionElement;
+        }
+
+
+        /**
+         * Carga las preguntas estáticas en el DOM.
          */
         function loadQuiz() {
             const containers = {
@@ -658,58 +789,79 @@
                 advanced: document.getElementById('advanced-quiz')
             };
             
-            // Contadores para numeración por sección
             let counters = { basic: 1, intermediate: 1, advanced: 1 };
 
             quizData.forEach((questionData, index) => {
                 const container = containers[questionData.level];
                 if (!container) return;
 
-                // --- Creación robusta de elementos ---
-                
-                // 1. Crear el contenedor principal de la pregunta
-                const questionElement = document.createElement('div');
-                questionElement.className = 'p-6 border border-gray-200 rounded-lg shadow-sm bg-white';
-
-                // 2. Crear el texto de la pregunta
-                const questionText = document.createElement('p');
-                questionText.className = 'text-lg font-medium text-gray-800 mb-5';
-                
-                // *** CORRECCIÓN DE NUMERACIÓN ***
-                // Usamos el contador de nivel y lo incrementamos
-                questionText.textContent = `${counters[questionData.level]}. ${questionData.question}`;
-                counters[questionData.level]++;
-                
-                questionElement.appendChild(questionText);
-
-                // 3. Crear el contenedor de opciones
-                const optionsContainer = document.createElement('div');
-                optionsContainer.className = 'space-y-3';
-
-                // 4. Crear cada opción (label, input, span)
-                questionData.options.forEach((option, optionIndex) => {
-                    const label = document.createElement('label');
-                    label.className = 'radio-label block w-full p-4 border border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 transition-all duration-200';
-
-                    const input = document.createElement('input');
-                    input.type = 'radio';
-                    input.name = `q${index}`; // El 'name' agrupa los radio buttons
-                    input.value = optionIndex;
-                    input.className = 'mr-3 text-blue-600 focus:ring-blue-500';
-
-                    const span = document.createElement('span');
-                    span.className = 'text-gray-700';
-                    span.textContent = option;
-
-                    label.appendChild(input);
-                    label.appendChild(span);
-                    optionsContainer.appendChild(label);
-                });
-
-                questionElement.appendChild(optionsContainer);
+                const questionNumber = counters[questionData.level]++;
+                const questionElement = createQuestionElement(questionData, index, questionNumber);
                 container.appendChild(questionElement);
             });
         }
+
+        /**
+         * NUEVA FUNCIÓN: Llama a la IA para generar 5 preguntas y las añade al DOM.
+         */
+        async function loadAIQuestions() {
+            const loader = document.getElementById('ai-quiz-loader');
+            const container = document.getElementById('ai-quiz');
+
+            // 1. Definir el esquema JSON que esperamos de la IA
+            const schema = {
+                type: "ARRAY",
+                items: {
+                    type: "OBJECT",
+                    properties: {
+                        question: { type: "STRING" },
+                        options: { type: "ARRAY", items: { type: "STRING" } },
+                        correctAnswer: { type: "NUMBER" },
+                        explanation: { type: "STRING" }
+                    },
+                    required: ["question", "options", "correctAnswer", "explanation"]
+                }
+            };
+
+            // 2. Definir los prompts para la IA
+            const systemPrompt = "Eres un generador de exámenes de C#. Debes devolver *únicamente* un array JSON que coincida con el esquema proporcionado, con 5 preguntas de C#. Asegúrate de que las opciones tengan 4 elementos.";
+            const userPrompt = "Genera 5 preguntas de examen sobre C#, de dificultad mixta (básica a avanzada). Deben ser preguntas de opción múltiple con 4 opciones. Proporciona el índice de la respuesta correcta (0-3) y una breve explicación para cada una.";
+
+            try {
+                // 3. Llamar a la IA
+                const generatedQuestions = await callGeminiForJson(userPrompt, systemPrompt, schema);
+
+                if (generatedQuestions && Array.isArray(generatedQuestions) && generatedQuestions.length > 0) {
+                    loader.style.display = 'none'; // Ocultar el loader
+                    
+                    // 4. Renderizar las preguntas
+                    generatedQuestions.forEach((qData, i) => {
+                        // Validar que la pregunta tenga 4 opciones (la IA a veces se equivoca)
+                        if (!qData.options || qData.options.length !== 4) {
+                            console.warn("Pregunta de IA omitida, no tiene 4 opciones:", qData);
+                            return; // Saltar esta pregunta
+                        }
+
+                        const newIndex = quizData.length; // Obtener el nuevo índice (ej. 30, 31, 32...)
+                        qData.level = 'ai'; // Asignar un nivel para referencia
+                        
+                        quizData.push(qData); // <-- AÑADIR LA PREGUNTA AL ARRAY GLOBAL
+                        
+                        // Usar la función refactorizada para crear el elemento
+                        const questionElement = createQuestionElement(qData, newIndex, i + 1); // i+1 es (1, 2, 3...)
+                        
+                        container.appendChild(questionElement);
+                    });
+                } else {
+                    throw new Error("La IA no devolvió un array válido.");
+                }
+
+            } catch (error) {
+                console.error("Error al cargar preguntas de IA:", error);
+                loader.innerHTML = '<p class="text-red-600 text-center font-semibold">Hubo un error al generar las preguntas. Por favor, recarga la página e inténtalo de nuevo.</p>';
+            }
+        }
+
 
         /**
          * Maneja el envío del formulario, califica y muestra los resultados.
